@@ -1,0 +1,8 @@
+<h1>WebRTC chat room</h1>
+<input placeholder='your name' id='my-name'>
+<input placeholder='peer name' id='peer-name'>
+<button id='connect'>Connect</button>
+<hr />
+<div id='msg'>
+  <input placeholder='enter msg here and press enter' id='msg-sender' style='width: 100%; margin-top: 5px;' disabled>
+</div>

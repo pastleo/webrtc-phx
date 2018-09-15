@@ -1,5 +1,8 @@
 import { Socket } from 'https://unpkg.com/phoenix@1.3.4/assets/js/phoenix.js?module';
 
+const rtcConfig = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
+console.log('rtcConfig:', rtcConfig);
+
 const phxSocket = new Socket("/socket", {});
 phxSocket.connect();
 
@@ -41,7 +44,7 @@ function initAndConnectPhxChannel() {
 function prepareOfferAndPush() {
   console.group('B. prepareOfferAndPush');
 
-  rtcConnection = new RTCPeerConnection();
+  rtcConnection = new RTCPeerConnection(rtcConfig);
 
   // IMPORTANT! createDataChannel is required before creating offer
   rtcChannel = rtcConnection.createDataChannel("msg");
@@ -70,7 +73,7 @@ function prepareAnswerAndPush({from, offer}) {
     // for the 'being connected' peer (who click the connect button first),
     // only connect to proper phx channel, its offer will be ignored
     // we need a new connection for 'being connected' here
-    rtcConnection = new RTCPeerConnection();
+    rtcConnection = new RTCPeerConnection(rtcConfig);
 
     rtcConnection.ondatachannel = ({channel}) => {
       rtcChannel = channel;

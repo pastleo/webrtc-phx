@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>WebrtcPhx · Phoenix Framework</title>
+    <link rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/app.css") %>"/>
+    <script defer type="text/javascript" src="<%= Routes.static_path(@conn, "/js/app.js") %>"></script>
+  </head>
+  <body>
+    <header class="flex items-center justify-center">
+      <h1 class="p-4">WebRTC demo with</h1>
+      <a href="https://phoenixframework.org/" target="_blank" class="phx-logo">
+        <img class="w-48" src="<%= Routes.static_path(@conn, "/images/phoenix.png") %>" alt="Phoenix Framework"/>
+      </a>
+    </header>
+    <main role="main" class="max-w-2xl mx-auto p-4">
+      <p class="alert alert-info" role="alert"><%= get_flash(@conn, :info) %></p>
+      <p class="alert alert-danger" role="alert"><%= get_flash(@conn, :error) %></p>
+      <%= @inner_content %>
+    </main>
+  </body>
+</html>

@@ -20,20 +20,35 @@ console.log('rtcConfig:', rtcConfig);
 
 let myName, peerName, phxChannel, rtcConnection, rtcChannel;
 
+const connectBtn = document.getElementById('connect');
+const msgSendingDiv = document.getElementById('msg-sending-box');
+const senderBtn = document.getElementById('msg-input');
+const msgDiv = document.getElementById('msg-box');
+
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('connect')
-    .addEventListener('click', initAndConnectPhxChannel);
-  document.getElementById('msg-sender')
-    .addEventListener('keypress', sendMsg);
+  connectBtn.addEventListener('click', initAndConnectPhxChannel);
+
+  senderBtn.addEventListener('keypress', ({ which }) => which === 13 && sendMsg());
+  document.getElementById('msg-send').addEventListener('click', sendMsg);
 }, false);
 
 // A:
 function initAndConnectPhxChannel() {
+  const myNameInput = document.getElementById('my-name')
+  const peerNameInput = document.getElementById('peer-name')
+  myName = myNameInput.value;
+  peerName = peerNameInput.value;
+
+  if (!(myName && peerName)) return;
+
   console.group('A. initAndConnectPhxChannel');
 
-  myName = document.getElementById('my-name').value;
-  peerName = document.getElementById('peer-name').value;
   console.log('myName:', myName, 'peerName:', peerName);
+
+  [myNameInput, peerNameInput, connectBtn].forEach(i => {
+    i.disabled = true;
+  });
+  connectBtn.classList.add('pointer-events-none', 'opacity-25');
 
   phxChannel = phxSocket.channel("handshake:" + myName, {})
 
@@ -147,7 +162,9 @@ function rtcConnectionChanged() {
   const { iceConnectionState } = rtcConnection;
   console.log('rtcConnectionChanged', iceConnectionState);
 
-  document.getElementById('msg').style.background = {
+  const disabling = iceConnectionState !== 'connected' && iceConnectionState !== 'completed';
+
+  senderBtn.style.background = {
     checking: '#ffeeb1',
     failed: '#ffaec8',
     disconnected: '#ffaec8',
@@ -156,15 +173,20 @@ function rtcConnectionChanged() {
     completed: '#e2ffef',
   }[iceConnectionState];
 
-  document.getElementById('msg-sender').disabled =
-    iceConnectionState !== 'connected' && iceConnectionState !== 'completed';
+  senderBtn.disabled = disabling;
+  if (disabling) {
+    msgSendingDiv.classList.add('opacity-25', 'pointer-events-none');
+  } else {
+    msgSendingDiv.classList.remove('opacity-25', 'pointer-events-none');
+  }
 }
 
-function sendMsg({ which, target }) {
-  if(rtcChannel && which === 13) {
-    console.log('rtc send:', target.value);
-    rtcChannel.send(target.value);
-    target.value = '';
+function sendMsg() {
+  const value = senderBtn.value;
+  if(rtcChannel && value) {
+    console.log('rtc send:', value);
+    rtcChannel.send(value);
+    senderBtn.value = '';
   }
 }
 
@@ -176,6 +198,6 @@ function receiveMsg({ data }) {
   const txtNode = document.createTextNode(data);
 
   el.appendChild(txtNode);
-  document.getElementById('msg').appendChild(el);
+  msgDiv.appendChild(el);
 }
 

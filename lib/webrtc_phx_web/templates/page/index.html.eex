@@ -1,9 +1,12 @@
-<div class="">
-  <input placeholder="your name" id="my-name">
-  <input placeholder="peer name" id="peer-name">
-  <button id="connect">Connect</button>
+<div class='m-3 flex border border-gray-700 rounded-xl overflow-hidden'>
+  <input class='border-r px-4 py-2 outline-none' placeholder='your name' id='my-name'>
+  <input class='border-r px-4 py-2 outline-none' placeholder='peer name' id='peer-name'>
+  <button class='flex-1 hover:bg-gray-300' id='connect'>Connect</button>
 </div>
-  <hr />
-  <div id="msg">
-    <input placeholder="enter msg here and press enter" id="msg-sender" style="width: 100%; margin-top: 5px;" disabled>
-  </div>
+<div id='msg-sending-box' class='m-4 flex border border-gray-700 rounded-xl overflow-hidden opacity-25 pointer-events-none'>
+  <input class='flex-1 border-r px-4 py-2 outline-none' placeholder='enter msg here and press enter' id='msg-input'>
+  <button class='hover:bg-gray-300 border-r px-4 py-2' id='msg-send'>Send</button>
+  <button class='hover:bg-gray-300 px-4 py-2' id='call'>Call</button>
+</div>
+<div class='m-4' id='msg-box'>
+</div>

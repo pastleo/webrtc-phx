@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   senderBtn.addEventListener('keypress', ({ which }) => which === 13 && sendMsg());
   document.getElementById('msg-send').addEventListener('click', sendMsg);
+  document.getElementById('start-stream').addEventListener('click', startStreamUserMedia);
 }, false);
 
 // A:
@@ -56,9 +57,20 @@ function initAndConnectPhxChannel() {
   phxChannel.on("answer", useAnswer);
   phxChannel.on("ice", useIceCandidate);
 
+  rtcConnection = new RTCPeerConnection(rtcConfig);
+  window.rtcConnection = rtcConnection;
+
+  rtcConnection.onicecandidate = pushIceCandidate;
+  rtcConnection.oniceconnectionstatechange = rtcConnectionChanged;
+  rtcConnection.ondatachannel = ({channel}) => {
+    rtcChannel = channel;
+    rtcChannel.onmessage = receiveMsg;
+  }
+  rtcConnection.ontrack = receiveRemoteStream;
+
   phxChannel
     .join()
-    .receive("ok", prepareOfferAndPush)
+    .receive("ok", offerAndPush)
     .receive("error", resp => {
       alert("Unable to join", resp)
       throw(resp)
@@ -68,17 +80,14 @@ function initAndConnectPhxChannel() {
 }
 
 // B.
-function prepareOfferAndPush() {
-  console.group('B. prepareOfferAndPush');
+function offerAndPush() {
+  console.group('B. offerAndPush');
 
-  rtcConnection = new RTCPeerConnection(rtcConfig);
-
-  // IMPORTANT! createDataChannel is required before creating offer
-  rtcChannel = rtcConnection.createDataChannel("msg");
-  rtcChannel.onmessage = receiveMsg;
-
-  rtcConnection.onicecandidate = pushIceCandidate;
-  rtcConnection.oniceconnectionstatechange = rtcConnectionChanged;
+  if (!rtcChannel) {
+    // IMPORTANT! createDataChannel is required before creating offer
+    rtcChannel = rtcConnection.createDataChannel("msg");
+    rtcChannel.onmessage = receiveMsg;
+  }
 
   rtcConnection
     .createOffer()
@@ -96,19 +105,6 @@ function prepareAnswerAndPush({from, offer}) {
   if(from === peerName) {
     console.group('C. prepareAnswerAndPush');
     console.log('from:', from, 'get offer:', offer);
-
-    // for the 'being connected' peer (who click the connect button first),
-    // only connect to proper phx channel, its offer will be ignored
-    // we need a new connection for 'being connected' here
-    rtcConnection = new RTCPeerConnection(rtcConfig);
-
-    rtcConnection.ondatachannel = ({channel}) => {
-      rtcChannel = channel;
-      rtcChannel.onmessage = receiveMsg;
-    }
-
-    rtcConnection.onicecandidate = pushIceCandidate;
-    rtcConnection.oniceconnectionstatechange = rtcConnectionChanged;
 
     rtcConnection
       .setRemoteDescription(JSON.parse(offer))
@@ -190,9 +186,64 @@ function sendMsg() {
   }
 }
 
+async function selectAndgetUserMediaStream() {
+  await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  const mediaDevs = await navigator.mediaDevices.enumerateDevices();
+
+  const audioDevSelect = document.getElementById('audio-devices');
+  const videoDevSelect = document.getElementById('video-devices');
+
+  audioDevSelect.innerHTML = '';
+  videoDevSelect.innerHTML = '';
+
+  mediaDevs.filter(({ deviceId }) => deviceId !== 'default').forEach(({ deviceId, label, kind }) => {
+    const optionDOM = document.createElement('option');
+    optionDOM.value = deviceId;
+    optionDOM.text = label;
+
+    if (kind === 'audioinput') {
+      audioDevSelect.add(optionDOM);
+    } else if (kind === 'videoinput') {
+      videoDevSelect.add(optionDOM);
+    }
+  })
+
+  await new Promise(resolve => {
+    const selectsDiv = document.getElementById('media-dev-selects');
+    selectsDiv.classList.remove('hidden');
+    document.getElementById('confirm-stream-dev').addEventListener('click', () => {
+      selectsDiv.classList.add('hidden');
+      resolve()
+    }, { once: true })
+  })
+
+  const mediaConstraints = {
+    audio: { deviceId: { exact: audioDevSelect.value } },
+    video: { deviceId: { exact: videoDevSelect.value } },
+  }
+  return navigator.mediaDevices.getUserMedia(mediaConstraints);
+}
+
+async function startStreamUserMedia() {
+  console.log('startStreamUserMedia');
+
+  const userMediaStream = await selectAndgetUserMediaStream();
+  userMediaStream.getTracks().forEach(track => {
+    console.log('rtcConnection.addTrack:', track, userMediaStream)
+    rtcConnection.addTrack(track, userMediaStream);
+  });
+
+  document.getElementById('media').classList.remove('hidden');
+
+  const videoDOM = document.getElementById('my-media')
+  videoDOM.srcObject = userMediaStream;
+  videoDOM.play();
+
+  offerAndPush();
+}
+
 function receiveMsg({ data }) {
-  console.log('receiveMsg');
-  console.log('data: ', data);
+  console.log('receiveMsg:', data);
 
   const el = document.createElement("p");
   const txtNode = document.createTextNode(data);
@@ -201,3 +252,21 @@ function receiveMsg({ data }) {
   msgDiv.appendChild(el);
 }
 
+let setStreamTimeout;
+function receiveRemoteStream(event) {
+  console.log('receiveRemoteStream', event.streams);
+
+  const videoDOM = document.getElementById('peer-media')
+  const stream = event.streams[0];
+
+  if (setStreamTimeout) clearTimeout(setStreamTimeout);
+  setStreamTimeout = setTimeout(() => {
+    console.log('setRemoteStream', stream);
+
+    document.getElementById('media').classList.remove('hidden');
+
+    window.stream = stream;
+    videoDOM.srcObject = stream;
+    videoDOM.play();
+  }, 750);
+}

@@ -15,22 +15,50 @@ import "../css/app.scss"
 import "phoenix_html"
 import phxSocket from "./socket"
 
-const rtcConfig = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
-console.log('rtcConfig:', rtcConfig);
+import _webrtcAdapter from 'webrtc-adapter';
 
-let myName, peerName, phxChannel, rtcConnection, rtcChannel;
+const rtcConfig = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
+
+let myName, peerName, phxChannel, rtcConnection, rtcChannel, userMediaAvailable = false;
 
 const connectBtn = document.getElementById('connect');
 const msgSendingDiv = document.getElementById('msg-sending-box');
 const senderBtn = document.getElementById('msg-input');
 const msgDiv = document.getElementById('msg-box');
 
+async function tackleUserMediaPermission() {
+  await askUserMediaPermission();
+
+  const startStreamBtn = document.getElementById('start-stream');
+  startStreamBtn.disabled = !userMediaAvailable;
+  if (userMediaAvailable) {
+    startStreamBtn.addEventListener('click', startStreamUserMedia);
+  }
+}
+
+async function askUserMediaPermission(videoOnly = false) {
+  try {
+    const userMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: !videoOnly });
+    userMediaStream.getTracks().forEach(track => {
+      track.stop();
+    });
+    userMediaAvailable = true;
+  } catch (e) {
+    if (videoOnly) {
+      alert('asking user media failed, error:\n' + e.message)
+    } else {
+      await askUserMediaPermission(true)
+    }
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   connectBtn.addEventListener('click', initAndConnectPhxChannel);
 
   senderBtn.addEventListener('keypress', ({ which }) => which === 13 && sendMsg());
   document.getElementById('msg-send').addEventListener('click', sendMsg);
-  document.getElementById('start-stream').addEventListener('click', startStreamUserMedia);
+
+  tackleUserMediaPermission();
 }, false);
 
 // A:
@@ -57,16 +85,7 @@ function initAndConnectPhxChannel() {
   phxChannel.on("answer", useAnswer);
   phxChannel.on("ice", useIceCandidate);
 
-  rtcConnection = new RTCPeerConnection(rtcConfig);
-  window.rtcConnection = rtcConnection;
-
-  rtcConnection.onicecandidate = pushIceCandidate;
-  rtcConnection.oniceconnectionstatechange = rtcConnectionChanged;
-  rtcConnection.ondatachannel = ({channel}) => {
-    rtcChannel = channel;
-    rtcChannel.onmessage = receiveMsg;
-  }
-  rtcConnection.ontrack = receiveRemoteStream;
+  console.groupEnd();
 
   phxChannel
     .join()
@@ -75,13 +94,27 @@ function initAndConnectPhxChannel() {
       alert("Unable to join", resp)
       throw(resp)
     })
-  
-  console.groupEnd();
+}
+
+function createRtcConnection() {
+  rtcConnection = new RTCPeerConnection(rtcConfig);
+
+  rtcConnection.onicecandidate = pushIceCandidate;
+  rtcConnection.oniceconnectionstatechange = rtcConnectionChanged;
+  rtcConnection.ondatachannel = ({channel}) => {
+    rtcChannel = channel;
+    rtcChannel.onmessage = receiveMsg;
+  }
+  rtcConnection.ontrack = receiveRemoteStream;
 }
 
 // B.
-function offerAndPush() {
+async function offerAndPush() {
   console.group('B. offerAndPush');
+
+  if (!rtcConnection) {
+    createRtcConnection();
+  }
 
   if (!rtcChannel) {
     // IMPORTANT! createDataChannel is required before creating offer
@@ -89,31 +122,38 @@ function offerAndPush() {
     rtcChannel.onmessage = receiveMsg;
   }
 
-  rtcConnection
-    .createOffer()
-    .then(offer => rtcConnection.setLocalDescription(offer))
-    .then(() => {
-      console.log('push offer description:', JSON.stringify(rtcConnection.localDescription))
-      phxChannel.push("offer", {target: peerName, offer: JSON.stringify(rtcConnection.localDescription)});
-    })
+  const offer = await rtcConnection.createOffer();
+  await rtcConnection.setLocalDescription(offer);
+
+  console.log('push offer description:', JSON.stringify(rtcConnection.localDescription))
+  phxChannel.push("offer", {
+    target: peerName, offer: JSON.stringify(rtcConnection.localDescription)
+  });
 
   console.groupEnd();
 }
 
 // C.
-function prepareAnswerAndPush({from, offer}) {
+async function prepareAnswerAndPush({from, offer}) {
   if(from === peerName) {
     console.group('C. prepareAnswerAndPush');
     console.log('from:', from, 'get offer:', offer);
 
-    rtcConnection
-      .setRemoteDescription(JSON.parse(offer))
-      .then(() => rtcConnection.createAnswer())
-      .then(answer => rtcConnection.setLocalDescription(answer))
-      .then(() => {
-        console.log('push answer description:', JSON.stringify(rtcConnection.localDescription))
-        phxChannel.push("answer", {target: peerName, answer: JSON.stringify(rtcConnection.localDescription)});
-      })
+    if (
+      !rtcConnection ||
+      (rtcConnection && rtcConnection.signalingState === 'have-local-offer')
+    ) {
+      createRtcConnection();
+    }
+
+    await rtcConnection.setRemoteDescription(JSON.parse(offer));
+    const answer = await rtcConnection.createAnswer()
+    await rtcConnection.setLocalDescription(answer)
+
+    console.log('push answer description:', JSON.stringify(rtcConnection.localDescription))
+    phxChannel.push("answer", {
+      target: peerName, answer: JSON.stringify(rtcConnection.localDescription)
+    });
 
     console.groupEnd();
   }
@@ -187,7 +227,6 @@ function sendMsg() {
 }
 
 async function selectAndgetUserMediaStream() {
-  await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   const mediaDevs = await navigator.mediaDevices.enumerateDevices();
 
   const audioDevSelect = document.getElementById('audio-devices');
@@ -218,8 +257,8 @@ async function selectAndgetUserMediaStream() {
   })
 
   const mediaConstraints = {
-    audio: { deviceId: { exact: audioDevSelect.value } },
-    video: { deviceId: { exact: videoDevSelect.value } },
+    audio: audioDevSelect.value ? { deviceId: { exact: audioDevSelect.value } } : false,
+    video: videoDevSelect.value ? { deviceId: { exact: videoDevSelect.value } } : false,
   }
   return navigator.mediaDevices.getUserMedia(mediaConstraints);
 }
@@ -237,7 +276,6 @@ async function startStreamUserMedia() {
 
   const videoDOM = document.getElementById('my-media')
   videoDOM.srcObject = userMediaStream;
-  videoDOM.play();
 
   offerAndPush();
 }
@@ -265,8 +303,6 @@ function receiveRemoteStream(event) {
 
     document.getElementById('media').classList.remove('hidden');
 
-    window.stream = stream;
     videoDOM.srcObject = stream;
-    videoDOM.play();
   }, 750);
 }

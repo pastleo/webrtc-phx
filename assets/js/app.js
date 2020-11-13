@@ -19,46 +19,22 @@ import _webrtcAdapter from 'webrtc-adapter';
 
 const rtcConfig = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
 
-let myName, peerName, phxChannel, rtcConnection, rtcChannel, userMediaAvailable = false;
-
-const connectBtn = document.getElementById('connect');
-const msgSendingDiv = document.getElementById('msg-sending-box');
-const senderBtn = document.getElementById('msg-input');
-const msgDiv = document.getElementById('msg-box');
-
-async function tackleUserMediaPermission() {
-  await askUserMediaPermission();
-
-  const startStreamBtn = document.getElementById('start-stream');
-  startStreamBtn.disabled = !userMediaAvailable;
-  if (userMediaAvailable) {
-    startStreamBtn.addEventListener('click', startStreamUserMedia);
-  }
-}
-
-async function askUserMediaPermission(videoOnly = false) {
-  try {
-    const userMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: !videoOnly });
-    userMediaStream.getTracks().forEach(track => {
-      track.stop();
-    });
-    userMediaAvailable = true;
-  } catch (e) {
-    if (videoOnly) {
-      alert('asking user media failed, error:\n' + e.message)
-    } else {
-      await askUserMediaPermission(true)
-    }
-  }
-}
+let myName, peerName, phxChannel, rtcConnection, rtcChannel;
+let connectBtn, msgSendingDiv, senderBtn, msgDiv, mediasDiv, peerMediaVideo, callBtn;
 
 document.addEventListener('DOMContentLoaded', () => {
-  connectBtn.addEventListener('click', initAndConnectPhxChannel);
+  connectBtn = document.getElementById('connect');
+  msgSendingDiv = document.getElementById('msg-sending-box');
+  senderBtn = document.getElementById('msg-input');
+  msgDiv = document.getElementById('msg-box');
+  mediasDiv = document.getElementById('medias');
+  peerMediaVideo = document.getElementById('peer-media');
+  callBtn = document.getElementById('call');
 
+  connectBtn.addEventListener('click', initAndConnectPhxChannel);
   senderBtn.addEventListener('keypress', ({ which }) => which === 13 && sendMsg());
   document.getElementById('msg-send').addEventListener('click', sendMsg);
-
-  tackleUserMediaPermission();
+  callBtn.addEventListener('click', startStreamUserMedia);
 }, false);
 
 // A:
@@ -221,19 +197,45 @@ function sendMsg() {
   const value = senderBtn.value;
   if(rtcChannel && value) {
     console.log('rtc send:', value);
+
     rtcChannel.send(value);
+
+    const newMsgP = document.createElement("p");
+    newMsgP.innerText = [myName, value].join(': ');
+    msgDiv.appendChild(newMsgP);
+
     senderBtn.value = '';
   }
 }
 
+async function askUserMediaPermission(videoOnly = false) {
+  try {
+    const userMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: !videoOnly });
+    userMediaStream.getTracks().forEach(track => {
+      track.stop();
+    });
+    return true;
+  } catch (e) {
+    if (videoOnly) {
+      alert('asking user media permission failed, error:\n' + e.message)
+      return false;
+    } else {
+      return askUserMediaPermission(true);
+    }
+  }
+}
+
 async function selectAndgetUserMediaStream() {
+  const permitted = await askUserMediaPermission();
+  if (!permitted) return;
+
   const mediaDevs = await navigator.mediaDevices.enumerateDevices();
 
   const audioDevSelect = document.getElementById('audio-devices');
   const videoDevSelect = document.getElementById('video-devices');
 
-  audioDevSelect.innerHTML = '';
-  videoDevSelect.innerHTML = '';
+  audioDevSelect.innerHTML = '<option value="">Mic Off</option>';
+  videoDevSelect.innerHTML = '<option value="">Cam Off</option>';
 
   mediaDevs.filter(({ deviceId }) => deviceId !== 'default').forEach(({ deviceId, label, kind }) => {
     const optionDOM = document.createElement('option');
@@ -256,53 +258,62 @@ async function selectAndgetUserMediaStream() {
     }, { once: true })
   })
 
-  const mediaConstraints = {
-    audio: audioDevSelect.value ? { deviceId: { exact: audioDevSelect.value } } : false,
-    video: videoDevSelect.value ? { deviceId: { exact: videoDevSelect.value } } : false,
+  if (audioDevSelect.value || videoDevSelect.value) {
+    const mediaConstraints = {
+      audio: audioDevSelect.value ? { deviceId: { exact: audioDevSelect.value } } : false,
+      video: videoDevSelect.value ? { deviceId: { exact: videoDevSelect.value } } : false,
+    }
+    return navigator.mediaDevices.getUserMedia(mediaConstraints);
+  } else {
+    alert('No mic or cam selected');
   }
-  return navigator.mediaDevices.getUserMedia(mediaConstraints);
 }
 
 async function startStreamUserMedia() {
   console.log('startStreamUserMedia');
 
   const userMediaStream = await selectAndgetUserMediaStream();
+  if (!userMediaStream) return;
+
   userMediaStream.getTracks().forEach(track => {
     console.log('rtcConnection.addTrack:', track, userMediaStream)
     rtcConnection.addTrack(track, userMediaStream);
   });
 
-  document.getElementById('media').classList.remove('hidden');
-
   const videoDOM = document.getElementById('my-media')
   videoDOM.srcObject = userMediaStream;
+  videoDOM.classList.remove('hidden');
+
+  mediasDiv.addEventListener('click', () => {
+    if (peerMediaVideo.classList.contains('hidden')) return;
+    videoDOM.classList.toggle('hidden');
+    peerMediaVideo.classList.toggle('w-3/4');
+  });
 
   offerAndPush();
+  callBtn.classList.add('pointer-events-none', 'opacity-25');
 }
 
 function receiveMsg({ data }) {
   console.log('receiveMsg:', data);
 
-  const el = document.createElement("p");
-  const txtNode = document.createTextNode(data);
-
-  el.appendChild(txtNode);
-  msgDiv.appendChild(el);
+  const newMsgP = document.createElement("p");
+  newMsgP.innerText = [peerName, data].join(': ');
+  msgDiv.appendChild(newMsgP);
 }
 
 let setStreamTimeout;
 function receiveRemoteStream(event) {
   console.log('receiveRemoteStream', event.streams);
 
-  const videoDOM = document.getElementById('peer-media')
   const stream = event.streams[0];
 
   if (setStreamTimeout) clearTimeout(setStreamTimeout);
   setStreamTimeout = setTimeout(() => {
     console.log('setRemoteStream', stream);
 
-    document.getElementById('media').classList.remove('hidden');
-
-    videoDOM.srcObject = stream;
+    peerMediaVideo.srcObject = stream;
+    peerMediaVideo.classList.remove('hidden');
+    mediasDiv.classList.add('text-center');
   }, 750);
 }

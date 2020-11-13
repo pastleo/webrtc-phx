@@ -3,14 +3,14 @@
   <input class='min-w-0 border-r px-4 py-2 flex-1 outline-none' placeholder='peer name' id='peer-name'>
   <button class='w-24 hover:bg-gray-300' id='connect'>Connect</button>
 </div>
-<div id='media' class='text-center hidden'>
-  <video class='inline mb-2 w-1/2 md:w-1/3' id="my-media" autoplay playsinline></video>
-  <video class='inline md:w-3/5' id="peer-media" autoplay playsinline></video>
+<div id='medias'>
+  <video class='hidden inline p-2 w-1/5' id='my-media' autoplay muted playsinline></video>
+  <video class='hidden inline p-2 w-3/4' id='peer-media' autoplay playsinline></video>
 </div>
 <div id='msg-sending-box' class='m-4 flex border border-gray-700 rounded-xl overflow-hidden opacity-25 pointer-events-none'>
   <input class='min-w-0 flex-1 border-r px-4 py-2 outline-none' placeholder='message' id='msg-input'>
   <button class='w-20 hover:bg-gray-300 border-r px-4 py-2' id='msg-send'>Send</button>
-  <button class='w-20 hover:bg-gray-300 px-4 py-2' id='start-stream'>Call</button>
+  <button class='w-20 hover:bg-gray-300 px-4 py-2' id='call'>Call</button>
 </div>
 <div id='media-dev-selects' class='hidden m-3 flex border border-gray-700 rounded-xl overflow-hidden'>
   <select class='min-w-0 border-r px-4 py-2 flex-1 outline-none' id='audio-devices'></select>

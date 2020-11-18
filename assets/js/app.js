@@ -17,7 +17,7 @@ import phxSocket from "./socket"
 
 import _webrtcAdapter from 'webrtc-adapter';
 
-const rtcConfig = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
+const rtcConfig = {iceServers: [{urls: 'stun:un-stun.pastleo.me:3478'}]};
 
 let myName, peerName, phxChannel, rtcConnection, rtcChannel;
 let connectBtn, msgSendingDiv, senderBtn, msgDiv, mediasDiv, peerMediaVideo, callBtn;

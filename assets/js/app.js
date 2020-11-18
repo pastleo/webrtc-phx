@@ -73,6 +73,8 @@ function initAndConnectPhxChannel() {
 }
 
 function createRtcConnection() {
+  console.log('createRtcConnection')
+
   rtcConnection = new RTCPeerConnection(rtcConfig);
 
   rtcConnection.onicecandidate = pushIceCandidate;
@@ -210,6 +212,8 @@ function sendMsg() {
 
 async function askUserMediaPermission(videoOnly = false) {
   try {
+    console.log('askUserMediaPermission');
+
     const userMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: !videoOnly });
     userMediaStream.getTracks().forEach(track => {
       track.stop();
@@ -226,6 +230,8 @@ async function askUserMediaPermission(videoOnly = false) {
 }
 
 async function selectAndgetUserMediaStream() {
+  console.log('selectAndgetUserMediaStream');
+
   const permitted = await askUserMediaPermission();
   if (!permitted) return;
 
@@ -263,6 +269,8 @@ async function selectAndgetUserMediaStream() {
       audio: audioDevSelect.value ? { deviceId: { exact: audioDevSelect.value } } : false,
       video: videoDevSelect.value ? { deviceId: { exact: videoDevSelect.value } } : false,
     }
+
+    console.log('mediaConstraints:', mediaConstraints);
     return navigator.mediaDevices.getUserMedia(mediaConstraints);
   } else {
     alert('No mic or cam selected');
@@ -310,7 +318,7 @@ function receiveRemoteStream(event) {
 
   if (setStreamTimeout) clearTimeout(setStreamTimeout);
   setStreamTimeout = setTimeout(() => {
-    console.log('setRemoteStream', stream);
+    console.log('start remote stream:', stream);
 
     peerMediaVideo.srcObject = stream;
     peerMediaVideo.classList.remove('hidden');
